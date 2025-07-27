@@ -23,7 +23,7 @@ z_dot = 0.0  # initial z velocity
 theta_dot = 0.0  # initial angular velocity
 
 # simulation bounds
-z_min = -100  # minimum z position to prevent going below ground level
+z_min = -100  # minimum z position 
 z_max = 0.0  # maximum z position (ground level)
 x_min = -100  # minimum x position
 x_max = 100  # maximum x position
@@ -33,7 +33,6 @@ window_width = 1200
 window_height = 600
 scale = 5  # pixels per meter
 center_x = window_width // 2
-# center_y = window_height // 2
 center_y = int(window_height * 0.9)  # center of the window in y-axis
 
 # for storing trajectory
@@ -41,8 +40,8 @@ trajectory = []
 current_time = 0.0
 
 # control inputs (can be modified by keyboard)
-thrust_offset = 0.0  # additional thrust beyond gravity compensation
-torque_input = 0.0  # torque input
+thrust_offset = 0.0 # additional thrust beyond gravity compensation
+torque_input = 0.0 # torque input
 thrust_step = 0.1  # how much thrust changes per key press
 torque_step = 0.001  # how much torque changes per key press
 
@@ -50,97 +49,79 @@ torque_step = 0.001  # how much torque changes per key press
 
 
 # visulize the ground
-
 world_size = 200
 np.random.seed(42)  # for reproducibility
 # generate binary string for ground
-world = np.random.randint(0, 2, world_size)
-square_size = 2.2  # size of each square in meters
+# world = np.random.randint(0, 2, world_size)
+# world as alternating black and white squares
+world = np.array([1, 0] * (world_size // 2))[:world_size]  # alternating pattern
+
+square_size = 1.2  # size of each square in meters
 features_locations = np.where(np.diff(world) != 0)[0] * square_size  # locations of features in meters
 feature_locations = features_locations + x_min # shift to match x_min
+# add a zero z coordinate 
+feature_locations = np.array([[f,0] for f in feature_locations]).T  # convert to 2D array for features
 features = np.diff(world)
 features = features[features != 0]
 
-print(world)
-
-# camera parameters
-camera_width = 800
-camera_height = 600
+focus_distance = 400.0  # distance from camera to focus point
 camera_fov = 60  # field of view in degrees
-camera_focal_length = camera_width / (2 * np.tan(np.radians(camera_fov / 2)))
 
-def project_features_to_camera(drone_x, drone_z, drone_theta, features_x):
-    """Project feature points from global frame to camera image coordinates"""
-    camera_img = np.zeros((camera_height, camera_width, 3), dtype=np.uint8)
+def get_projection(x, z, theta):
+    # camera rotation matrix
+    R_cam = np.array([[np.cos(theta), -np.sin(theta)],
+                    [np.sin(theta), np.cos(theta)]])  # rotation matrix for camera frame
+    # camera translation vector
+    t_cam = np.array([x, z])  # camera position in world coordinates
+    phi = np.radians(camera_fov / 2)  # half field of view in radians
+    x_min_visible = x + z * np.tan(phi - theta)
+    x_max_visible = x - z * np.tan(phi + theta)
+    # filter feature_locations within visible range
+    visible_features_locations = feature_locations[:, (feature_locations[0] >= x_min_visible) & (feature_locations[0] <= x_max_visible)]
+    # filter features that are visible in the camera frame
+    visible_features = features[(feature_locations[0] >= x_min_visible) & (feature_locations[0] <= x_max_visible)]
+
+    f_loc_camera_frame = (R_cam @ (visible_features_locations - t_cam[:2, np.newaxis])).T
+    projected_features = focus_distance * f_loc_camera_frame[:, 0] / f_loc_camera_frame[:, 1]
+    return projected_features, visible_features
+
+def draw_vector(locations, edges):
+    image_height = 300
+    image_width = 2 * int(np.tan(np.deg2rad(60) / 2) * focus_distance)
     
-    # Camera is at drone position, facing downward with rotation -theta
-    projected_features = []
+    if len(locations) == 0:
+        return np.zeros((image_height, image_width), dtype=np.uint8)
     
-    for feat_x in features_x:
-        # Feature is at (feat_x, 0) in global frame (on ground, z=0)
-        # Transform to drone-centered coordinates
-        dx = feat_x - drone_x
-        dz = 0 - drone_z  # feature at ground level (z=0), drone at drone_z
-        
-        # Rotate by -drone_theta (camera rotation opposite to drone rotation)
-        cos_theta = np.cos(-drone_theta)
-        sin_theta = np.sin(-drone_theta)
-        
-        # Rotate in horizontal plane (x-z plane)
-        cam_x = dx * cos_theta - 0 * sin_theta  # dz_horizontal = 0 since feature is at same ground level
-        cam_z = dx * sin_theta + 0 * cos_theta
-        cam_y = dz  # vertical distance (altitude)
-        
-        # Only project features that are in front of camera and drone is above ground
-        if cam_y > 0 and drone_z < 0:  # camera looking down, drone above ground
-            # Perspective projection
-            # Project to normalized camera coordinates
-            x_norm = cam_x / cam_y
-            z_norm = cam_z / cam_y
-            
-            # Convert to pixel coordinates
-            u = camera_focal_length * x_norm + camera_width / 2
-            v = camera_focal_length * z_norm + camera_height / 2
-            
-            # Check if feature is within camera view
-            if 0 <= u < camera_width and 0 <= v < camera_height:
-                projected_features.append((int(u), int(v)))
+    edges = np.array(edges)  # -1: black→white, 1: white→black
+    center = image_width // 2
+    image = np.zeros((image_height, image_width), dtype=np.uint8)  # initialize with zeros (black)
+    put_pixels = locations + center  # shift to center
+    put_pixels = put_pixels.astype(int)  # convert to integer pixel coordinates
     
-    # Draw features on camera image
-    for i, (u, v) in enumerate(projected_features):
-        # Different colors for different feature types
-        if i < len(features) and features[i] == 1:  # rising edge (black to white)
-            feature_color = (0, 255, 0)  # green
-        elif i < len(features) and features[i] == -1:  # falling edge (white to black)
-            feature_color = (0, 0, 255)  # red
+    current_location = 0
+    max_location = put_pixels.max()
+    for i in range(window_width):
+        if i > max_location:
+            if edges[-1] == -1:  # black to white edge
+                image[:, i:] = 0  # set pixel to white
+            elif edges[-1] == 1:  # white to black edge
+                image[:, i:] = 255
+            break
+        if i < put_pixels[current_location]:
+            if edges[current_location] == -1:  # black to white edge
+                image[:, i] = 255  # set pixel to white
+            elif edges[current_location] == 1:  # white to black edge
+                image[:, i] = 0
         else:
-            feature_color = (255, 255, 0)  # yellow for other features
-            
-        # Draw feature with color coding
-        cv2.circle(camera_img, (u, v), 8, feature_color, -1)
-        cv2.circle(camera_img, (u, v), 12, (255, 255, 255), 2)  # white border
-        
-        # Add feature index label
-        cv2.putText(camera_img, str(i), (u + 15, v - 5), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    
-    # Add feature legend
-    cv2.putText(camera_img, "Green: B->W edge", (10, camera_height - 80), 
-               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-    cv2.putText(camera_img, "Red: W->B edge", (10, camera_height - 60), 
-               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-    cv2.putText(camera_img, "Yellow: Other", (10, camera_height - 40), 
-               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-    
-    # Add crosshair at center
-    cv2.line(camera_img, (camera_width//2 - 20, camera_height//2), 
-             (camera_width//2 + 20, camera_height//2), (255, 0, 0), 2)
-    cv2.line(camera_img, (camera_width//2, camera_height//2 - 20), 
-             (camera_width//2, camera_height//2 + 20), (255, 0, 0), 2)
-    
-    return camera_img, projected_features
+            current_location += 1
 
+    for i in range(len(put_pixels) - 1):
+        try:
+            image[:, put_pixels[i]] = 255  # set pixel to white
+        except IndexError:
+            pass
 
+    return image
 
 # create OpenCV windows
 cv2.namedWindow('Drone Simulation', cv2.WINDOW_AUTOSIZE)
@@ -151,13 +132,24 @@ while current_time < max_sim_time:
     # create blank image with gray background
     img = np.full((window_height, window_width, 3), (64, 64, 64), dtype=np.uint8)  # dark gray background
     
-    # draw ground line (z = 0)
-    ground_y = center_y - int(0 * scale)
-    cv2.line(img, (0, ground_y), (window_width, ground_y), (100, 100, 100), 2)
+     # draw coordinate system as arrows
+    # x-axis arrow (pointing right)
+    arrow_length = 30
+    arrow_start_x = center_x
+    arrow_start_y = center_y
+    cv2.arrowedLine(img, (arrow_start_x, arrow_start_y), 
+                   (arrow_start_x + arrow_length, arrow_start_y), 
+                   (255, 255, 255), 2, tipLength=0.3)
+    cv2.putText(img, "x", (arrow_start_x + arrow_length + 5, arrow_start_y + 5), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
     
-    # draw coordinate system
-    cv2.line(img, (center_x, 0), (center_x, window_height), (50, 50, 50), 1)
-    cv2.line(img, (0, center_y), (window_width, center_y), (50, 50, 50), 1)
+    # z-axis arrow (pointing down)
+    cv2.arrowedLine(img, (arrow_start_x, arrow_start_y), 
+                   (arrow_start_x, arrow_start_y + arrow_length), 
+                   (255, 255, 255), 2, tipLength=0.3)
+    cv2.putText(img, "z", (arrow_start_x + 5, arrow_start_y + arrow_length + 15), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+    
     
     # draw simulation bounds
     # x bounds (vertical lines)
@@ -175,9 +167,6 @@ while current_time < max_sim_time:
 
     T_z = m * g + thrust_offset  # total thrust with user control
     M_y = torque_input  # torque with user control
-
-    # T_z = -(u1 + u2)  # total thrust/ minus since motors upwards, z downwards
-    # M_y = r * (u1 - u2)  # torque, u1 is forward motor, u2 is backward motor
 
     # control allocation, solve linear system for u1 and u2
     u1, u2 = np.linalg.solve(np.array([[-1, -1], [r, -r]]), np.array([-T_z, M_y]))
@@ -243,33 +232,6 @@ while current_time < max_sim_time:
     x2 = int(screen_x + half_width * cos_theta)
     y2 = int(screen_y + half_width * sin_theta)
     
-    # draw ground pattern visualization as black and white squares
-    # size_ww = 100
-    # pattern_start_x = max(x_min, int((x - size_ww) / square_size))
-    # pattern_end_x = min(world_size - 1, int((x + size_ww) / square_size))
-    
-    # square_height = 8  # height of squares in pixels
-    
-    # for i in range(pattern_start_x, pattern_end_x):
-    #     pattern_x = i * square_size
-    #     pattern_screen_x = int(center_x + pattern_x * scale)
-    #     pattern_screen_x_end = int(center_x + (pattern_x + square_size) * scale)
-        
-    #     if 0 <= pattern_screen_x < window_width:
-    #         if world[i] == 1:  # white square
-    #             cv2.rectangle(img, (pattern_screen_x, ground_y - square_height//2), 
-    #                         (pattern_screen_x_end, ground_y + square_height//2), 
-    #                         (255, 255, 255), -1)  # white
-    #         else:  # black square
-    #             cv2.rectangle(img, (pattern_screen_x, ground_y - square_height//2), 
-    #                         (pattern_screen_x_end, ground_y + square_height//2), 
-    #                         (0, 0, 0), -1)  # black
-            
-    #         # draw square borders for clarity
-    #         cv2.rectangle(img, (pattern_screen_x, ground_y - square_height//2), 
-    #                     (pattern_screen_x_end, ground_y + square_height//2), 
-    #                     (128, 128, 128), 1)  # gray border
-    
     # draw drone body as a thick line
     cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 3)
     
@@ -316,14 +278,9 @@ while current_time < max_sim_time:
     for i, text in enumerate(info_text):
         cv2.putText(img, text, (10, 30 + i * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     
-    # generate camera view with projected features
-    camera_view, projected_features = project_features_to_camera(x, z, theta, features_locations)
-    
-    # add camera info to camera view
-    cv2.putText(camera_view, f"Altitude: {-z:.1f}m", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    cv2.putText(camera_view, f"Heading: {np.degrees(theta):.1f}°", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    cv2.putText(camera_view, f"Features: {len(projected_features)}", (10, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    
+    locations, edges = get_projection(x, z, theta)
+    camera_view = draw_vector(locations, edges)  # Call the function to visualize the vector
+
     # show images
     cv2.imshow('Drone Simulation', img)
     cv2.imshow('Camera View', camera_view)

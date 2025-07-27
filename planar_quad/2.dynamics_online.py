@@ -47,9 +47,6 @@ thrust_step = 0.1  # how much thrust changes per key press
 torque_step = 0.001  # how much torque changes per key press
 
 
-
-
-
 # create OpenCV window
 cv2.namedWindow('Drone Simulation', cv2.WINDOW_AUTOSIZE)
 
@@ -58,13 +55,23 @@ while current_time < max_sim_time:
     # create blank image
     img = np.zeros((window_height, window_width, 3), dtype=np.uint8)
     
-    # draw ground line (z = 0)
-    ground_y = center_y - int(0 * scale)
-    cv2.line(img, (0, ground_y), (window_width, ground_y), (100, 100, 100), 2)
+    # draw coordinate system as arrows
+    # x-axis arrow (pointing right)
+    arrow_length = 30
+    arrow_start_x = center_x
+    arrow_start_y = center_y
+    cv2.arrowedLine(img, (arrow_start_x, arrow_start_y), 
+                   (arrow_start_x + arrow_length, arrow_start_y), 
+                   (255, 255, 255), 2, tipLength=0.3)
+    cv2.putText(img, "x", (arrow_start_x + arrow_length + 5, arrow_start_y + 5), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
     
-    # draw coordinate system
-    cv2.line(img, (center_x, 0), (center_x, window_height), (50, 50, 50), 1)
-    cv2.line(img, (0, center_y), (window_width, center_y), (50, 50, 50), 1)
+    # z-axis arrow (pointing down)
+    cv2.arrowedLine(img, (arrow_start_x, arrow_start_y), 
+                   (arrow_start_x, arrow_start_y + arrow_length), 
+                   (255, 255, 255), 2, tipLength=0.3)
+    cv2.putText(img, "z", (arrow_start_x + 5, arrow_start_y + arrow_length + 15), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
     
     # draw simulation bounds
     # x bounds (vertical lines)
@@ -82,9 +89,6 @@ while current_time < max_sim_time:
 
     T_z = m * g + thrust_offset  # total thrust with user control
     M_y = torque_input  # torque with user control
-
-    # T_z = -(u1 + u2)  # total thrust/ minus since motors upwards, z downwards
-    # M_y = r * (u1 - u2)  # torque, u1 is forward motor, u2 is backward motor
 
     # control allocation, solve linear system for u1 and u2
     u1, u2 = np.linalg.solve(np.array([[-1, -1], [r, -r]]), np.array([-T_z, M_y]))

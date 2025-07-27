@@ -15,23 +15,22 @@ dt = 0.01  # time step for simulation
 num_steps = int(T_sim / dt)
 time_steps = np.arange(0, T_sim, dt)
 
-x_0 = 0.0  # initial x position
-z_0 = 0.0  # initial y position
-theta_0 = 0.0  # initial angle
-x_dot_0 = 0.0  # initial x velocity
-z_dot_0 = 0.0  # initial y velocity
-theta_dot_0 = 0.0  # initial angular velocity
+x = 0.0  # initial x position
+z = -10.0  # initial y position
+theta = 0.0  # initial angle
+x_dot = 0.0  # initial x velocity
+z_dot = 0.0  # initial y velocity
+theta_dot = 0.0  # initial angular velocity
 
 # simulate physics using Euler integration
 states = np.zeros((num_steps, 6))  # state vector: [x, z, theta, x_dot, z_dot, theta_dot]
-states[0] = [x_0, z_0, theta_0, x_dot_0, z_dot_0, theta_dot_0]      
+states[0] = [x, z, theta, x_dot, z_dot, theta_dot]
 
 for i in range(1, num_steps):
-    # extract current state
-    x, z, theta, x_dot, z_dot, theta_dot = states[i - 1]
-
-    T_z = m * g + 0.5 # total thrust to balance gravity plus some extra force
+    T_z = m * g + 0.1 # total thrust to balance gravity plus some extra force
     M_y = 0.001  # small torque for testing
+
+    #TODO: Add contorl of theta or theta dot using PD controller
 
     # T_z = -(u1 + u2)  # total thrust/ minus since motors upwards, z downwards
     # M_y = r * (u1 - u2)  # torque, u1 is forward motor, u2 is backward motor
@@ -58,7 +57,7 @@ for i in range(1, num_steps):
     # add ground constraint to z 
     z = min(z, 0.0)  # prevent going below ground level
 
-    # store new state
+    # data recording
     states[i] = [x, z, theta, x_dot, z_dot, theta_dot]
 
 # plot the results
