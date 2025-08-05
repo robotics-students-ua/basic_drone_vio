@@ -46,9 +46,67 @@ torque_input = 0.0  # torque input
 thrust_step = 0.1  # how much thrust changes per key press
 torque_step = 0.001  # how much torque changes per key press
 
+a_step = 1
+v_step = 1
 
+w_sp_step = 0.01  # step size for angular velocity setpoint
+theta_step = 0.1  # step size for angle setpoint
 # create OpenCV window
 cv2.namedWindow('Drone Simulation', cv2.WINDOW_AUTOSIZE)
+
+
+theta_dot_sp = 0.0  # desired angular velocity (for PD control)
+theta_sp = 0.0  # desired angle (not used in this simulation)
+K_p_theta_dot = 0.2
+K_p_theta = 2
+K_d = 1.0 # PD control gains
+
+x_dot_sp = 0.0  # desired horizontal velocity
+z_dot_sp = 0.0  # desired vertical velocity
+a_x_sp = 0.0
+a_z_sp = 0.0
+
+x_dot_sp = 0.0  # desired horizontal velocity setpoint
+z_dot_sp = 0.0  # desired vertical velocity setpoint
+
+T_z_sp = m * g 
+M_y_sp = 0.0  # desired torque (not used in this simulation)
+
+#TODO Add position mode
+modes = ['crash', 'acro', 'stab', 'acceleration', 'velocity']
+mode_index = 4
+mode = modes[mode_index]
+
+def crash_control(T_z_sp, M_y_sp):
+    return T_z_sp, M_y_sp
+
+def rate_control(T_z_sp, theta_dot_sp):
+    M_y_sp = K_p_theta_dot * (theta_dot_sp - theta_dot)
+    return T_z_sp, M_y_sp
+
+def att_control(T_z_sp, theta_sp):
+    global theta_dot_sp
+    theta_dot_sp = K_p_theta * (theta_sp - theta)
+    return rate_control(T_z_sp, theta_dot_sp)
+
+def acceleration_control(a_x_sp, a_z_sp):
+    global theta_sp, T_z_sp
+    F_x_sp = m * a_x_sp
+    F_z_sp = m * (g - a_z_sp)
+    T_z_sp = np.sqrt(F_x_sp**2 + F_z_sp**2)
+    theta_sp = np.arctan2(-F_x_sp, F_z_sp)
+    return att_control(T_z_sp, theta_sp)
+
+def velocity_control(x_dot_sp, z_dot_sp):
+    global a_x_sp, a_z_sp
+    # Calculate desired accelerations based on velocity setpoints
+    error_x = x_dot_sp - x_dot
+    error_z = z_dot_sp - z_dot
+    k_p = 1.0  # proportional gain for velocity control
+    a_x_sp = k_p * error_x
+    a_z_sp = k_p * error_z
+    return acceleration_control(a_x_sp, a_z_sp)
+
 
 # simulation loop
 while current_time < max_sim_time:
@@ -87,11 +145,26 @@ while current_time < max_sim_time:
     cv2.line(img, (0, z_max_screen), (window_width, z_max_screen), (0, 255, 0), 1)  # green bottom bound (z_max)
     
 
-    T_z = m * g + thrust_offset  # total thrust with user control
-    M_y = torque_input  # torque with user control
+    if mode == 'crash':
+        # T_z_sp, M_y_sp = crash_control(T_z_sp, M_y_sp)
+        # T_z_sp = T_z_sp  # total thrust with user control
+        M_y_sp = torque_input  # total torque with user control
+    elif mode == 'velocity':
+        T_z_sp, M_y_sp = velocity_control(x_dot_sp, z_dot_sp)
+    elif mode == 'acceleration':
+        T_z_sp, M_y_sp = acceleration_control(a_x_sp, a_z_sp)
+    elif mode == 'stab':
+        T_z_sp, M_y_sp = att_control(T_z_sp, theta_sp)
+    elif mode == 'acro':
+        T_z_sp, M_y_sp = rate_control(T_z_sp, theta_dot_sp)
 
     # control allocation, solve linear system for u1 and u2
-    u1, u2 = np.linalg.solve(np.array([[-1, -1], [r, -r]]), np.array([-T_z, M_y]))
+    u1, u2 = np.linalg.solve(np.array([[-1, -1], [r, -r]]), np.array([-T_z_sp, M_y_sp]))
+
+
+    # T_z = m * g + thrust_offset  # total thrust with user control
+    # M_y = torque_input  # torque with user control
+
 
     # compute accelerations
     x_ddot = -(u1 + u2) * np.sin(theta) / m
@@ -177,17 +250,19 @@ while current_time < max_sim_time:
     # add text information
     info_text = [
         f"Time: {current_time:.2f}s",
+        f"Mode: {mode.capitalize()}",
         f"Position: ({x:.2f}, {z:.2f})",
         f"Velocity: ({x_dot:.2f}, {z_dot:.2f})",
         f"Angle: {theta:.3f} rad",
         f"Angular speed: {theta_dot:.3f} rad/s",
         f"Controls: u1={u1:.2f}, u2={u2:.2f}",
-        f"Thrust offset: {thrust_offset:.2f}",
-        f"Torque input: {torque_input:.3f}",
+        f"Thrust z: {T_z_sp:.2f}",
+        f"Torque sp: {torque_input:.3f}",
         "",
         "Controls:",
         "UP/DOWN: Thrust +/-",
         "LEFT/RIGHT: Torque +/-",
+        "M: Switch Mode",
         "R: Reset simulation",
         "ESC: Exit"
     ]
@@ -202,14 +277,47 @@ while current_time < max_sim_time:
     key = cv2.waitKey(1) & 0xFF
     if key == 27:  # ESC key
         break
+    elif key == ord('m'):
+        mode_index = (mode_index + 1) % len(modes)
+        mode = modes[mode_index]
     elif key == 82 or key == ord('w'):  # UP arrow or W key
-        thrust_offset += thrust_step
+        if mode == 'crash' or mode == 'acro' or mode == 'stab':
+            # thrust_offset += thrust_step
+            T_z_sp += thrust_step  # update total thrust
+        elif mode == 'acceleration':
+            a_z_sp -= a_step
+        elif mode == 'velocity':
+            z_dot_sp -= v_step
+
     elif key == 84 or key == ord('s'):  # DOWN arrow or S key
-        thrust_offset -= thrust_step
+        if mode == 'crash' or mode == 'acro' or mode == 'stab':
+            T_z_sp -= thrust_step  # update total thrust
+        elif mode == 'acceleration':
+            a_z_sp += a_step
+        elif mode == 'velocity':
+            z_dot_sp += v_step
     elif key == 81 or key == ord('a'):  # LEFT arrow or A key
-        torque_input += torque_step
+        if mode == 'crash':
+            torque_input += torque_step
+        elif mode == 'acro':
+            theta_dot_sp += w_sp_step
+        elif mode == 'stab':
+            theta_sp += theta_step     
+        elif mode == 'acceleration':
+            a_x_sp -= a_step
+        elif mode == 'velocity':
+            x_dot_sp -= v_step
     elif key == 83 or key == ord('d'):  # RIGHT arrow or D key
-        torque_input -= torque_step
+        if mode == 'crash':
+            torque_input -= torque_step
+        elif mode == 'acro':
+            theta_dot_sp -= w_sp_step
+        elif mode == 'stab':
+            theta_sp -= theta_step
+        elif mode == 'acceleration':
+            a_x_sp += a_step
+        elif mode == 'velocity':
+            x_dot_sp += v_step
     elif key == ord('r') or key == ord('R'):  # R key to reset
         # reset drone state
         x = 0.0
