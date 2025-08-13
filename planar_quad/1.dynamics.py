@@ -51,6 +51,8 @@ x_dot_sp = 0.0  # desired horizontal velocity
 z_dot_sp = 0.0  # desired vertical velocity
 a_x_sp = 0.0
 a_z_sp = 0.0
+x_sp = 0.0  # desired horizontal position setpoint
+z_sp = 0.0  # desired vertical position setpoint
 
 x_dot_sp = 0.0  # desired horizontal velocity setpoint
 z_dot_sp = 0.0  # desired vertical velocity setpoint
@@ -60,12 +62,13 @@ M_y_sp = 0.0  # desired torque (not used in this simulation)
 
 
 #TODO TRY ALL MODES and see how they work
-modes = ['crash', 'acro', 'stab', 'acceleration', 'velocity']
+modes = ['crash', 'acro', 'stab', 'acceleration', 'velocity', 'position']
 mode = modes[0]
 mode = modes[1]
 mode = modes[2]
 mode = modes[3]
 mode = modes[4]
+mode = modes[5]
 
 def crash_control(T_z_sp, M_y_sp):
     return T_z_sp, M_y_sp
@@ -97,6 +100,19 @@ def velocity_control(x_dot_sp, z_dot_sp):
     a_z_sp = k_p * error_z
     return acceleration_control(a_x_sp, a_z_sp)
 
+def position_control(x_sp, z_sp):
+    global x_dot_sp, z_dot_sp
+    error_x = x_sp - x
+    error_z = z_sp - z
+    
+    k_p_x = 0.7  # horizontal gain
+    k_p_z = 0.5  # vertical gain (often different due to gravity)
+    
+    x_dot_sp = k_p_x * error_x
+    z_dot_sp = k_p_z * error_z
+    
+    return velocity_control(x_dot_sp, z_dot_sp)
+
 for i in range(1, num_steps):
     if i > num_steps // 2:
         if mode == 'crash':
@@ -112,14 +128,19 @@ for i in range(1, num_steps):
         if mode == 'velocity':
             x_dot_sp = 0.1
             z_dot_sp = -0.4
+        if mode == 'position':
+            x_sp = 5
+            z_sp = -30
 
-    if mode == 'velocity':
+    if mode == 'position':
+        T_z_sp, M_y_sp = position_control(x_sp, z_sp)
+    elif mode == 'velocity':
         T_z_sp, M_y_sp = velocity_control(x_dot_sp, z_dot_sp)
-    if mode == 'acceleration':
+    elif mode == 'acceleration':
         T_z_sp, M_y_sp = acceleration_control(a_x_sp, a_z_sp)
-    if mode == 'stab':
+    elif mode == 'stab':
         T_z_sp, M_y_sp = att_control(T_z_sp, theta_sp)
-    if mode == 'acro':
+    elif mode == 'acro':
         T_z_sp, M_y_sp = rate_control(T_z_sp, theta_dot_sp)
 
     # control allocation, solve linear system for u1 and u2

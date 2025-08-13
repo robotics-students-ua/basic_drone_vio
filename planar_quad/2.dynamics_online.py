@@ -48,6 +48,8 @@ torque_step = 0.001  # how much torque changes per key press
 
 a_step = 1
 v_step = 1
+x_step = 1
+z_step = 1
 
 w_sp_step = 0.01  # step size for angular velocity setpoint
 theta_step = 0.1  # step size for angle setpoint
@@ -65,6 +67,8 @@ x_dot_sp = 0.0  # desired horizontal velocity
 z_dot_sp = 0.0  # desired vertical velocity
 a_x_sp = 0.0
 a_z_sp = 0.0
+x_sp = 0.0  # desired horizontal position setpoint
+z_sp = -10.0  # desired vertical position setpoint
 
 x_dot_sp = 0.0  # desired horizontal velocity setpoint
 z_dot_sp = 0.0  # desired vertical velocity setpoint
@@ -73,7 +77,7 @@ T_z_sp = m * g
 M_y_sp = 0.0  # desired torque (not used in this simulation)
 
 #TODO Add position mode
-modes = ['crash', 'acro', 'stab', 'acceleration', 'velocity']
+modes = ['crash', 'acro', 'stab', 'acceleration', 'velocity', 'position']
 mode_index = 4
 mode = modes[mode_index]
 
@@ -107,6 +111,19 @@ def velocity_control(x_dot_sp, z_dot_sp):
     a_z_sp = k_p * error_z
     return acceleration_control(a_x_sp, a_z_sp)
 
+
+def position_control(x_sp, z_sp):
+    global x_dot_sp, z_dot_sp
+    error_x = x_sp - x
+    error_z = z_sp - z
+    
+    k_p_x = 0.3  # horizontal gain
+    k_p_z = 0.5  # vertical gain (often different due to gravity)
+    
+    x_dot_sp = k_p_x * error_x
+    z_dot_sp = k_p_z * error_z
+    
+    return velocity_control(x_dot_sp, z_dot_sp)
 
 # simulation loop
 while current_time < max_sim_time:
@@ -149,6 +166,8 @@ while current_time < max_sim_time:
         # T_z_sp, M_y_sp = crash_control(T_z_sp, M_y_sp)
         # T_z_sp = T_z_sp  # total thrust with user control
         M_y_sp = torque_input  # total torque with user control
+    elif mode == 'position':
+        T_z_sp, M_y_sp = position_control(x_sp, z_sp)
     elif mode == 'velocity':
         T_z_sp, M_y_sp = velocity_control(x_dot_sp, z_dot_sp)
     elif mode == 'acceleration':
@@ -256,8 +275,8 @@ while current_time < max_sim_time:
         f"Angle: {theta:.3f} rad",
         f"Angular speed: {theta_dot:.3f} rad/s",
         f"Controls: u1={u1:.2f}, u2={u2:.2f}",
-        f"Thrust z: {T_z_sp:.2f}",
-        f"Torque sp: {torque_input:.3f}",
+        # f"Thrust z: {T_z_sp:.2f}",
+        # f"Torque sp: {torque_input:.3f}",
         "",
         "Controls:",
         "UP/DOWN: Thrust +/-",
@@ -267,9 +286,28 @@ while current_time < max_sim_time:
         "ESC: Exit"
     ]
     
+    # add setpoints information (upper right)
+    setpoints_text = [
+        "Current Setpoints:",
+        f"Position: x_sp={x_sp:.2f}, z_sp={z_sp:.2f}",
+        f"Velocity: x_dot_sp={x_dot_sp:.2f}, z_dot_sp={z_dot_sp:.2f}",
+        f"Acceleration: a_x_sp={a_x_sp:.2f}, a_z_sp={a_z_sp:.2f}",
+        f"Attitude: theta_sp={theta_sp:.3f} rad",
+        f"Angular vel: theta_dot_sp={theta_dot_sp:.3f} rad/s",
+        f"Thrust: T_z_sp={T_z_sp:.2f}",
+        f"Torque: M_y_sp={M_y_sp:.3f}"
+    ]
+    
     for i, text in enumerate(info_text):
         cv2.putText(img, text, (10, 30 + i * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     
+    # display setpoints in upper right corner
+    for i, text in enumerate(setpoints_text):
+        text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
+        x_pos = window_width - text_size[0] - 10
+        y_pos = 30 + i * 20
+        cv2.putText(img, text, (x_pos, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+
     # show image
     cv2.imshow('Drone Simulation', img)
     
@@ -288,6 +326,8 @@ while current_time < max_sim_time:
             a_z_sp -= a_step
         elif mode == 'velocity':
             z_dot_sp -= v_step
+        elif mode == 'position':
+            z_sp -= z_step
 
     elif key == 84 or key == ord('s'):  # DOWN arrow or S key
         if mode == 'crash' or mode == 'acro' or mode == 'stab':
@@ -296,6 +336,9 @@ while current_time < max_sim_time:
             a_z_sp += a_step
         elif mode == 'velocity':
             z_dot_sp += v_step
+        elif mode == 'position':
+            z_sp += z_step
+
     elif key == 81 or key == ord('a'):  # LEFT arrow or A key
         if mode == 'crash':
             torque_input += torque_step
@@ -307,6 +350,8 @@ while current_time < max_sim_time:
             a_x_sp -= a_step
         elif mode == 'velocity':
             x_dot_sp -= v_step
+        elif mode == 'position':
+            x_sp -= x_step
     elif key == 83 or key == ord('d'):  # RIGHT arrow or D key
         if mode == 'crash':
             torque_input -= torque_step
@@ -318,6 +363,8 @@ while current_time < max_sim_time:
             a_x_sp += a_step
         elif mode == 'velocity':
             x_dot_sp += v_step
+        elif mode == 'position':
+            x_sp += x_step
     elif key == ord('r') or key == ord('R'):  # R key to reset
         # reset drone state
         x = 0.0
