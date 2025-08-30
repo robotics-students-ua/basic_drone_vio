@@ -89,10 +89,10 @@ use_estimated_position = True  # Set to True to use estimated position in positi
 ### STATE ESTIMATION
 
 # Kalman filter variables for theta estimation
-theta_kf = 0.1 # Kalman filter state (estimated angle)
+theta_kf = 0.0 # Kalman filter state (estimated angle)
 P_kf = 1.01      # Error covariance
 Q_kf = 0.01     # Process noise (gyroscope drift/bias)
-R_kf = 20.5      # Measurement noise (accelerometer noise)
+R_kf = 200.5      # Measurement noise (accelerometer noise)
 
 def estimate_theta(a_x, a_z):
     # use accelerometer data to estimate theta
@@ -107,7 +107,7 @@ def estimate_theta_kalman(a_x, a_z, theta_dot):
     P_kf = P_kf + Q_kf
 
     # Measurement update
-    theta_meas = estimate_theta(a_x, a_z)
+    theta_meas = -np.arctan2(a_x, -a_z)
     K = P_kf / (P_kf + R_kf)  # Kalman gain
     theta_kf = theta_kf + K * (theta_meas - theta_kf)
     P_kf = (1 - K) * P_kf
@@ -159,7 +159,8 @@ def rate_control(T_z_sp, theta_dot_sp):
 
 def att_control(T_z_sp, theta_sp):
     global theta_dot_sp
-    theta_dot_sp = K_p_theta * (theta_sp - theta)
+    # theta_dot_sp = K_p_theta * (theta_sp - theta)
+    theta_dot_sp = K_p_theta * (theta_sp - theta_est)
     # theta_dot_sp = K_p_theta * (theta_sp - theta_est)
     return rate_control(T_z_sp, theta_dot_sp)
 
@@ -211,7 +212,7 @@ for i in range(1, num_steps):
         elif mode == 'acro':
             theta_dot_sp = 0.1  # desired angular velocity for acro mode
         elif mode == 'stab':
-            theta_sp = 0.2  # desired angle for step response
+            theta_sp = 0.02  # desired angle for step response
         if mode == 'acceleration':
             a_x_sp = 0.1
             a_z_sp = -0.4
@@ -258,7 +259,7 @@ for i in range(1, num_steps):
     theta_dot_imu = gyroscope(theta_dot, noise=0.01)
     
     # State estimation
-    theta_est =  estimate_theta(a_x_imu, a_z_imu)   
+    # theta_est =  estimate_theta(a_x_imu, a_z_imu)   
     theta_est = estimate_theta_kalman(a_x_imu, a_z_imu, theta_dot_imu)   
     x_est, z_est = estimate_pos(a_x_imu, a_z_imu, theta_est)  # estimate position using double integration
 
