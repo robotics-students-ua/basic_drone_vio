@@ -1,3 +1,4 @@
 opencv-python
 numpy
 matplotlib
+ppigrf  # for simulation of magnetometer

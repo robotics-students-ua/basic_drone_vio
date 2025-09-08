@@ -1,0 +1,7 @@
+
+# ROS2 
+# source ~/ros2_custom_msgs/install/local_setup.bash 
+
+
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+ros2 launch foxglove_bridge foxglove_bridge_launch.xml
