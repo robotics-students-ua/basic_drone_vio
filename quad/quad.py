@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from rigid_body import RigidBody
-from sensors import IMU, Barometer, Magnetometer
+# from sensors import IMU, Barometer, Magnetometer
 
 class Quad(RigidBody):
     def __init__(self, X_init=None, mass=None, J=None) -> None:
@@ -25,8 +25,8 @@ class Quad(RigidBody):
         self.set_mass(mass)
         self.set_inertia(J)
         self.init_solver(self.dynamics, type='rk4')
-        self.IMU = IMU()
-        self.barometer = Barometer()
+        # self.IMU = IMU()
+        # self.barometer = Barometer()
         # self.magnetometer = Magnetometer(50.45, 30.52, 0)
 
     @property

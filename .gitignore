@@ -1,3 +1,12 @@
 ros2_custom_msgs/build
 ros2_custom_msgs/install
 ros2_custom_msgs/log
+
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg       

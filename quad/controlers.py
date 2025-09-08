@@ -33,12 +33,12 @@ class StabController:
             axis /= np.linalg.norm(axis)
         else:
             axis = np.zeros(3)
-        euler_pitch = np.arctan2(2 * (q[0] * q[2] + q[1] * q[3]), 1 - 2 * (q[2]**2 + q[3]**2))
-        euler_sp_pitch = np.arctan2(2 * (q_sp[0] * q_sp[2] + q_sp[1] * q_sp[3]), 1 - 2 * (q_sp[2]**2 + q_sp[3]**2))
+        # euler_pitch = np.arctan2(2 * (q[0] * q[2] + q[1] * q[3]), 1 - 2 * (q[2]**2 + q[3]**2))
+        # euler_sp_pitch = np.arctan2(2 * (q_sp[0] * q_sp[2] + q_sp[1] * q_sp[3]), 1 - 2 * (q_sp[2]**2 + q_sp[3]**2))
         # print(f'Angle (deg): {np.degrees(angle)}, Axis: {axis}')
         # print(f"euler pitch error {np.rad2deg(euler_pitch - euler_sp_pitch)}")
         # Desired angular velocity from PD control
-        w_desired = self.K_p * angle * axis 
+        # w_desired = self.K_p * angle * axis 
 
 
         self.T_sp = thrust_z
