@@ -1,0 +1,15 @@
+name: vio
+channels: [conda-forge, defaults]
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - matplotlib
+  - pip
+  - pip:
+      - opencv-python
+      - pyquaternion
+      - transforms3d
+      - filterpy
+      - mavsdk
+      - tqdm
