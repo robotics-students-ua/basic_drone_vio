@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="uk" xml:lang="uk"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Розділ 1 — Динаміка плоского квадрокоптера</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="01_planar_quad_dynamics_files/libs/clipboard/clipboard.min.js"></script>
+<script src="01_planar_quad_dynamics_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="01_planar_quad_dynamics_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="01_planar_quad_dynamics_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="01_planar_quad_dynamics_files/libs/quarto-html/popper.min.js"></script>
+<script src="01_planar_quad_dynamics_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="01_planar_quad_dynamics_files/libs/quarto-html/anchor.min.js"></script>
+<link href="01_planar_quad_dynamics_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="01_planar_quad_dynamics_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="01_planar_quad_dynamics_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="01_planar_quad_dynamics_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="01_planar_quad_dynamics_files/libs/bootstrap/bootstrap-4529b50e9ec13df04abaec3a65f25231.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#мета" id="toc-мета" class="nav-link active" data-scroll-target="#мета"><span class="header-section-number">1</span> Мета</a></li>
+  <li><a href="#системи-координат" id="toc-системи-координат" class="nav-link" data-scroll-target="#системи-координат"><span class="header-section-number">2</span> Системи координат</a>
+  <ul class="collapse">
+  <li><a href="#світова-система-w-у-стилі-ned" id="toc-світова-система-w-у-стилі-ned" class="nav-link" data-scroll-target="#світова-система-w-у-стилі-ned"><span class="header-section-number">2.1</span> Світова система <span class="math inline">\(\{W\}\)</span> (у стилі NED)</a></li>
+  <li><a href="#звязана-система-b" id="toc-звязана-система-b" class="nav-link" data-scroll-target="#звязана-система-b"><span class="header-section-number">2.2</span> Зв’язана система <span class="math inline">\(\{B\}\)</span></a></li>
+  <li><a href="#кут-тангажу-theta" id="toc-кут-тангажу-theta" class="nav-link" data-scroll-target="#кут-тангажу-theta"><span class="header-section-number">2.3</span> Кут тангажу <span class="math inline">\(\theta\)</span></a></li>
+  </ul></li>
+  <li><a href="#модель-апарата" id="toc-модель-апарата" class="nav-link" data-scroll-target="#модель-апарата"><span class="header-section-number">3</span> Модель апарата</a></li>
+  <li><a href="#сили-та-моменти" id="toc-сили-та-моменти" class="nav-link" data-scroll-target="#сили-та-моменти"><span class="header-section-number">4</span> Сили та моменти</a>
+  <ul class="collapse">
+  <li><a href="#сумарна-тяга" id="toc-сумарна-тяга" class="nav-link" data-scroll-target="#сумарна-тяга"><span class="header-section-number">4.1</span> Сумарна тяга</a></li>
+  <li><a href="#момент-тангажу" id="toc-момент-тангажу" class="nav-link" data-scroll-target="#момент-тангажу"><span class="header-section-number">4.2</span> Момент тангажу</a></li>
+  </ul></li>
+  <li><a href="#рівняння-руху" id="toc-рівняння-руху" class="nav-link" data-scroll-target="#рівняння-руху"><span class="header-section-number">5</span> Рівняння руху</a></li>
+  <li><a href="#розподіл-керування" id="toc-розподіл-керування" class="nav-link" data-scroll-target="#розподіл-керування"><span class="header-section-number">6</span> Розподіл керування</a></li>
+  <li><a href="#форма-простору-станів" id="toc-форма-простору-станів" class="nav-link" data-scroll-target="#форма-простору-станів"><span class="header-section-number">7</span> Форма простору станів</a>
+  <ul class="collapse">
+  <li><a href="#дискретизація-метод-ейлера" id="toc-дискретизація-метод-ейлера" class="nav-link" data-scroll-target="#дискретизація-метод-ейлера"><span class="header-section-number">7.1</span> Дискретизація (метод Ейлера)</a></li>
+  </ul></li>
+  <li><a href="#рівновага-при-зависанні-та-лінеаризація" id="toc-рівновага-при-зависанні-та-лінеаризація" class="nav-link" data-scroll-target="#рівновага-при-зависанні-та-лінеаризація"><span class="header-section-number">8</span> Рівновага при зависанні та лінеаризація</a></li>
+  <li><a href="#підсумок" id="toc-підсумок" class="nav-link" data-scroll-target="#підсумок"><span class="header-section-number">9</span> Підсумок</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Розділ 1 — Динаміка плоского квадрокоптера</h1>
+<p class="subtitle lead">Рівняння руху в площині x–z (конвенція NED)</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="мета" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Мета</h1>
+<p>Ми моделюємо квадрокоптер, який рухається лише у вертикальній площині. Такий <em>плоский квадрокоптер</em> має три ступені вільності: два поступальні (<span class="math inline">\(x\)</span>, <span class="math inline">\(z\)</span>) і один обертальний (тангаж <span class="math inline">\(\theta\)</span>). Це найпростіша модель, яка все ще відображає ключову властивість мультиротора: <strong>щоб рухатися вбік, він мусить нахилитися</strong>.</p>
+<p>Рівняння, виведені тут, реалізовані у <a href="../quad_2d.py"><code>quad_2d.py</code></a> та <a href="../1.dynamics.py"><code>1.dynamics.py</code></a>.</p>
+</section>
+<section id="системи-координат" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Системи координат</h1>
+<section id="світова-система-w-у-стилі-ned" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="світова-система-w-у-стилі-ned"><span class="header-section-number">2.1</span> Світова система <span class="math inline">\(\{W\}\)</span> (у стилі NED)</h2>
+<p>Ми використовуємо праву систему координат за авіаційною конвенцією NED, обмежену вертикальною площиною:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Вісь</th>
+<th>Напрямок</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(x_W\)</span></td>
+<td><strong>праворуч</strong> (вперед / «Північ»)</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(z_W\)</span></td>
+<td><strong>вниз</strong> (за напрямком гравітації)</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(y_W\)</span></td>
+<td><strong>до спостерігача</strong> (з площини сторінки)</td>
+</tr>
+</tbody>
+</table>
+<p>Перевірка правої орієнтації: <span class="math inline">\(\hat{z} \times \hat{x} = \hat{y}\)</span>. Коли <span class="math inline">\(x\)</span> спрямована праворуч, а <span class="math inline">\(z\)</span> — вниз, векторний добуток напрямлений із сторінки, до нас. ✔</p>
+<pre><code>            y_W (до спостерігача, зі сторінки)
+             ⊙ ──────────────▶ x_W
+             │
+             │
+             │
+             ▼
+            z_W   (гравітація +g)</code></pre>
+<p>Наслідки того, що <span class="math inline">\(z\)</span> спрямована вниз:</p>
+<ul>
+<li>Висота <span class="math inline">\(h = -z\)</span>. Дрон на висоті 10 м над землею має <span class="math inline">\(z = -10\)</span>.</li>
+<li>Гравітація діє в <strong>додатному</strong> напрямку <span class="math inline">\(z\)</span>: <span class="math inline">\(\mathbf{g} = [0,\; g]^\top\)</span>.</li>
+<li>Тяга роторів (що штовхає апарат угору) діє у <strong>від’ємному</strong> напрямку осі <span class="math inline">\(z\)</span> тіла.</li>
+</ul>
+</section>
+<section id="звязана-система-b" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="звязана-система-b"><span class="header-section-number">2.2</span> Зв’язана система <span class="math inline">\(\{B\}\)</span></h2>
+<p>Зв’язана система координат прикріплена до центру мас апарата:</p>
+<ul>
+<li><span class="math inline">\(x_B\)</span> — до <strong>переднього</strong> ротора (носа),</li>
+<li><span class="math inline">\(z_B\)</span> — вниз крізь нижню частину апарата,</li>
+<li><span class="math inline">\(y_B = y_W\)</span> — до спостерігача (при плоскому русі вони збігаються).</li>
+</ul>
+</section>
+<section id="кут-тангажу-theta" class="level2" data-number="2.3">
+<h2 data-number="2.3" class="anchored" data-anchor-id="кут-тангажу-theta"><span class="header-section-number">2.3</span> Кут тангажу <span class="math inline">\(\theta\)</span></h2>
+<p><span class="math inline">\(\theta\)</span> — це поворот <span class="math inline">\(\{B\}\)</span> відносно <span class="math inline">\(\{W\}\)</span> навколо осі <span class="math inline">\(y\)</span>. За правилом правої руки навколо <span class="math inline">\(y\)</span> (яка спрямована до нас), <strong>додатний <span class="math inline">\(\theta\)</span> — це поворот проти годинникової стрілки, як ми його бачимо</strong>, тобто <strong>ніс угору</strong>.</p>
+<p>Матриця повороту зі зв’язаної системи у світову (у компонентах <span class="math inline">\((x, z)\)</span>):</p>
+<p><span class="math display">\[
+R(\theta) =
+\begin{bmatrix}
+\cos\theta &amp; \sin\theta \\
+-\sin\theta &amp; \cos\theta
+\end{bmatrix},
+\qquad
+\begin{bmatrix} x \\ z \end{bmatrix}_W
+= R(\theta)
+\begin{bmatrix} x \\ z \end{bmatrix}_B .
+\]</span></p>
+<p>Перевірка: напрямок носа <span class="math inline">\(\hat{x}_B = [1, 0]^\top\)</span> переходить у <span class="math inline">\([\cos\theta,\, -\sin\theta]^\top\)</span>. Для малого <span class="math inline">\(\theta &gt; 0\)</span> компонента <span class="math inline">\(z\)</span> від’ємна, тобто ніс спрямований <strong>угору</strong>. ✔</p>
+</section>
+</section>
+<section id="модель-апарата" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Модель апарата</h1>
+<pre><code>        u2 ↑                       ↑ u1
+       ━━━━━━━━━━━━━━━●━━━━━━━━━━━━━━━━━━━
+       задній       -r    ЦМ     +r       передній (ніс, +x_B)</code></pre>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Позначення</th>
+<th>Значення</th>
+<th>Величина в коді</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(m\)</span></td>
+<td>маса</td>
+<td>1.0 кг</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(I_{yy}\)</span></td>
+<td>момент інерції відносно <span class="math inline">\(y\)</span></td>
+<td>0.1 кг·м²</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(r\)</span></td>
+<td>відстань від ЦМ до кожного ротора</td>
+<td>0.5 м</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(g\)</span></td>
+<td>прискорення вільного падіння</td>
+<td>9.81 м/с²</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(u_1\)</span></td>
+<td>тяга <strong>переднього</strong> ротора (<span class="math inline">\(\geq 0\)</span>)</td>
+<td>вхід</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(u_2\)</span></td>
+<td>тяга <strong>заднього</strong> ротора (<span class="math inline">\(\geq 0\)</span>)</td>
+<td>вхід</td>
+</tr>
+</tbody>
+</table>
+<p>Кожен ротор створює тягу вздовж <span class="math inline">\(-z_B\)</span> (угору відносно корпусу).</p>
+</section>
+<section id="сили-та-моменти" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Сили та моменти</h1>
+<section id="сумарна-тяга" class="level2" data-number="4.1">
+<h2 data-number="4.1" class="anchored" data-anchor-id="сумарна-тяга"><span class="header-section-number">4.1</span> Сумарна тяга</h2>
+<p>У зв’язаній системі сумарна сила роторів дорівнює</p>
+<p><span class="math display">\[
+\mathbf{F}_B = \begin{bmatrix} 0 \\ -(u_1 + u_2) \end{bmatrix}
+= \begin{bmatrix} 0 \\ T_z \end{bmatrix},
+\qquad
+T_z = -(u_1 + u_2).
+\]</span></p>
+<p><span class="math inline">\(T_z\)</span> від’ємна, коли ротори штовхають угору, бо <span class="math inline">\(z_B\)</span> спрямована вниз. У <code>quad_2d.py</code> змінна <code>T_z_sp</code> зберігає модуль тяги <span class="math inline">\(T = u_1 + u_2 = -T_z\)</span> (наприклад, <code>m * g</code> у режимі зависання). Знак мінус повертається на етапі розподілу керування.</p>
+<p>У світовій системі:</p>
+<p><span class="math display">\[
+\mathbf{F}_W = R(\theta)\,\mathbf{F}_B
+= \begin{bmatrix}
+-(u_1 + u_2)\sin\theta \\
+-(u_1 + u_2)\cos\theta
+\end{bmatrix}.
+\]</span></p>
+</section>
+<section id="момент-тангажу" class="level2" data-number="4.2">
+<h2 data-number="4.2" class="anchored" data-anchor-id="момент-тангажу"><span class="header-section-number">4.2</span> Момент тангажу</h2>
+<p>Передній ротор розташований у <span class="math inline">\(\mathbf{p}_1 = [\,r, 0\,]^\top\)</span>, задній — у <span class="math inline">\(\mathbf{p}_2 = [\,-r, 0\,]^\top\)</span> (у зв’язаній системі). Компонента <span class="math inline">\(y\)</span> добутку <span class="math inline">\(\mathbf{p} \times \mathbf{F}\)</span> у площині <span class="math inline">\((x, z)\)</span> дорівнює <span class="math inline">\(M_y = p_z F_x - p_x F_z\)</span>:</p>
+<p><span class="math display">\[
+M_y = -r\,(-u_1) \;-\; (-r)(-u_2) = r\,(u_1 - u_2).
+\]</span></p>
+<p>Більша тяга переднього ротора (<span class="math inline">\(u_1 &gt; u_2\)</span>) дає <span class="math inline">\(M_y &gt; 0\)</span>: ніс піднімається <strong>угору</strong>. ✔</p>
+</section>
+</section>
+<section id="рівняння-руху" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Рівняння руху</h1>
+<p>Закон Ньютона (поступальний рух, світова система) і рівняння Ейлера (обертання навколо <span class="math inline">\(y\)</span>):</p>
+<p><span class="math display">\[
+\boxed{
+\begin{aligned}
+m\,\ddot{x} &amp;= -(u_1 + u_2)\,\sin\theta \\[2pt]
+m\,\ddot{z} &amp;= m g - (u_1 + u_2)\,\cos\theta \\[2pt]
+I_{yy}\,\ddot{\theta} &amp;= r\,(u_1 - u_2)
+\end{aligned}
+}
+\]</span></p>
+<p>Як їх читати:</p>
+<ul>
+<li><strong>Зависання</strong> (<span class="math inline">\(\theta = 0\)</span>): <span class="math inline">\(\ddot{x} = 0\)</span> і <span class="math inline">\(\ddot{z} = g - (u_1+u_2)/m\)</span>. Апарат утримує висоту, коли <span class="math inline">\(u_1 + u_2 = mg\)</span>.</li>
+<li><strong>Ніс угору</strong> (<span class="math inline">\(\theta &gt; 0\)</span>): <span class="math inline">\(\sin\theta &gt; 0\)</span>, тож <span class="math inline">\(\ddot{x} &lt; 0\)</span> — вектор тяги нахиляється назад, і апарат прискорюється в бік <span class="math inline">\(-x\)</span>. Щоб летіти <strong>вперед</strong> (<span class="math inline">\(+x\)</span>), квадрокоптер мусить опустити <strong>ніс униз</strong> (<span class="math inline">\(\theta &lt; 0\)</span>).</li>
+<li><strong>Нахил коштує висоти</strong>: вертикальна складова тяги <span class="math inline">\((u_1+u_2)\cos\theta\)</span> зменшується зі зростанням <span class="math inline">\(|\theta|\)</span>.</li>
+</ul>
+</section>
+<section id="розподіл-керування" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> Розподіл керування</h1>
+<p>Зручно керувати <em>сумарною тягою</em> та <em>моментом</em> замість окремих тяг роторів:</p>
+<p><span class="math display">\[
+\begin{bmatrix} T_z \\ M_y \end{bmatrix}
+=
+\underbrace{\begin{bmatrix} -1 &amp; -1 \\ r &amp; -r \end{bmatrix}}_{A}
+\begin{bmatrix} u_1 \\ u_2 \end{bmatrix},
+\qquad
+\begin{bmatrix} u_1 \\ u_2 \end{bmatrix} = A^{-1}
+\begin{bmatrix} T_z \\ M_y \end{bmatrix}.
+\]</span></p>
+<p>З <span class="math inline">\(T = u_1 + u_2 = -T_z\)</span> (модуль тяги):</p>
+<p><span class="math display">\[
+u_1 = \frac{T}{2} + \frac{M_y}{2r},
+\qquad
+u_2 = \frac{T}{2} - \frac{M_y}{2r}.
+\]</span></p>
+<p>Тоді рівняння руху набувають вигляду</p>
+<p><span class="math display">\[
+\begin{aligned}
+\ddot{x} &amp;= -\frac{T}{m}\sin\theta \\
+\ddot{z} &amp;= g - \frac{T}{m}\cos\theta \\
+\ddot{\theta} &amp;= \frac{M_y}{I_{yy}}
+\end{aligned}
+\]</span></p>
+<p>Зверніть увагу на структуру: <span class="math inline">\(M_y\)</span> безпосередньо керує <span class="math inline">\(\theta\)</span>, <span class="math inline">\(\theta\)</span> задає напрямок тяги, а тяга керує <span class="math inline">\(x\)</span> і <span class="math inline">\(z\)</span>. Цей каскад (<span class="math inline">\(M_y \to \theta \to \ddot{x}\)</span>) є основою вкладених регуляторів (кутова швидкість → кут → прискорення → швидкість → положення), які ми побудуємо в наступних розділах.</p>
+</section>
+<section id="форма-простору-станів" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> Форма простору станів</h1>
+<p>Стан і вхід:</p>
+<p><span class="math display">\[
+\mathbf{s} = \begin{bmatrix} x &amp; z &amp; \theta &amp; \dot{x} &amp; \dot{z} &amp; \dot{\theta} \end{bmatrix}^\top,
+\qquad
+\mathbf{u} = \begin{bmatrix} T &amp; M_y \end{bmatrix}^\top .
+\]</span></p>
+<p><span class="math display">\[
+\dot{\mathbf{s}} = f(\mathbf{s}, \mathbf{u}) =
+\begin{bmatrix}
+\dot{x} \\
+\dot{z} \\
+\dot{\theta} \\
+-\dfrac{T}{m}\sin\theta \\[6pt]
+g - \dfrac{T}{m}\cos\theta \\[6pt]
+\dfrac{M_y}{I_{yy}}
+\end{bmatrix}.
+\]</span></p>
+<section id="дискретизація-метод-ейлера" class="level2" data-number="7.1">
+<h2 data-number="7.1" class="anchored" data-anchor-id="дискретизація-метод-ейлера"><span class="header-section-number">7.1</span> Дискретизація (метод Ейлера)</h2>
+<p>Симулятор інтегрує з кроком <span class="math inline">\(\Delta t\)</span> (напівнеявний метод Ейлера — спочатку оновлюються швидкості, потім положення з новими швидкостями):</p>
+<p><span class="math display">\[
+\begin{aligned}
+\dot{\mathbf{q}}_{k+1} &amp;= \dot{\mathbf{q}}_k + \ddot{\mathbf{q}}_k\,\Delta t \\
+\mathbf{q}_{k+1} &amp;= \mathbf{q}_k + \dot{\mathbf{q}}_{k+1}\,\Delta t
+\end{aligned}
+\qquad \mathbf{q} = [x,\, z,\, \theta]^\top .
+\]</span></p>
+</section>
+</section>
+<section id="рівновага-при-зависанні-та-лінеаризація" class="level1" data-number="8">
+<h1 data-number="8"><span class="header-section-number">8</span> Рівновага при зависанні та лінеаризація</h1>
+<p>При зависанні: <span class="math inline">\(\theta^* = 0\)</span>, <span class="math inline">\(\dot{\mathbf{q}}^* = 0\)</span>, <span class="math inline">\(T^* = mg\)</span>, <span class="math inline">\(M_y^* = 0\)</span>.</p>
+<p>Для малих відхилень <span class="math inline">\(\delta T = T - mg\)</span> і малих кутів (<span class="math inline">\(\sin\theta \approx \theta\)</span>, <span class="math inline">\(\cos\theta \approx 1\)</span>):</p>
+<p><span class="math display">\[
+\begin{aligned}
+\ddot{x} &amp;\approx -g\,\theta \\
+\ddot{z} &amp;\approx -\frac{\delta T}{m} \\
+\ddot{\theta} &amp;= \frac{M_y}{I_{yy}}
+\end{aligned}
+\]</span></p>
+<p>Лінеаризована модель розпадається на:</p>
+<ul>
+<li><strong>вертикальний</strong> канал: подвійний інтегратор, яким керує <span class="math inline">\(\delta T\)</span>,</li>
+<li><strong>горизонтальний</strong> канал: ланцюжок із чотирьох інтеграторів <span class="math inline">\(M_y \xrightarrow{1/I_{yy}} \ddot\theta \to \dot\theta \to \theta
+\xrightarrow{-g} \ddot{x} \to \dot{x} \to x\)</span>.</li>
+</ul>
+</section>
+<section id="підсумок" class="level1" data-number="9">
+<h1 data-number="9"><span class="header-section-number">9</span> Підсумок</h1>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Величина</th>
+<th>Вираз</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Модуль тяги</td>
+<td><span class="math inline">\(T = u_1 + u_2\)</span></td>
+</tr>
+<tr class="even">
+<td>Тяга в зв’язаній системі (<span class="math inline">\(z_B\)</span>)</td>
+<td><span class="math inline">\(T_z = -T\)</span></td>
+</tr>
+<tr class="odd">
+<td>Момент тангажу</td>
+<td><span class="math inline">\(M_y = r(u_1 - u_2)\)</span></td>
+</tr>
+<tr class="even">
+<td>Горизонтальне приск.</td>
+<td><span class="math inline">\(\ddot{x} = -\tfrac{T}{m}\sin\theta\)</span></td>
+</tr>
+<tr class="odd">
+<td>Вертикальне приск.</td>
+<td><span class="math inline">\(\ddot{z} = g - \tfrac{T}{m}\cos\theta\)</span></td>
+</tr>
+<tr class="even">
+<td>Кутове приск.</td>
+<td><span class="math inline">\(\ddot{\theta} = M_y / I_{yy}\)</span></td>
+</tr>
+<tr class="odd">
+<td>Тяга зависання</td>
+<td><span class="math inline">\(T^* = mg\)</span></td>
+</tr>
+<tr class="even">
+<td>Висота</td>
+<td><span class="math inline">\(h = -z\)</span></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Правила знаків, які варто запам’ятати</strong> (NED, <span class="math inline">\(y\)</span> до спостерігача): <span class="math inline">\(z\)</span> вниз <span class="math inline">\(\Rightarrow\)</span> «угору» — це від’ємний напрямок; <span class="math inline">\(\theta &gt; 0\)</span> — ніс угору; ніс угору штовхає апарат у бік <span class="math inline">\(-x\)</span>.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

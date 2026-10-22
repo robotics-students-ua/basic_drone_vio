@@ -10,3 +10,6 @@ __pycache__/
 *.pyd
 *.pdb
 *.egg       
+
+# Editor settings
+.vscode/

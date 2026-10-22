@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="uk" xml:lang="uk"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Розділ 3 — Датчики: чому IMU замало</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="03_state_estimation_files/libs/clipboard/clipboard.min.js"></script>
+<script src="03_state_estimation_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="03_state_estimation_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="03_state_estimation_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="03_state_estimation_files/libs/quarto-html/popper.min.js"></script>
+<script src="03_state_estimation_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="03_state_estimation_files/libs/quarto-html/anchor.min.js"></script>
+<link href="03_state_estimation_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="03_state_estimation_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="03_state_estimation_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="03_state_estimation_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="03_state_estimation_files/libs/bootstrap/bootstrap-4529b50e9ec13df04abaec3a65f25231.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#мета" id="toc-мета" class="nav-link active" data-scroll-target="#мета"><span class="header-section-number">1</span> Мета</a></li>
+  <li><a href="#датчики-що-вони-насправді-вимірюють" id="toc-датчики-що-вони-насправді-вимірюють" class="nav-link" data-scroll-target="#датчики-що-вони-насправді-вимірюють"><span class="header-section-number">2</span> Датчики: що вони насправді вимірюють</a>
+  <ul class="collapse">
+  <li><a href="#гіроскоп" id="toc-гіроскоп" class="nav-link" data-scroll-target="#гіроскоп"><span class="header-section-number">2.1</span> Гіроскоп</a></li>
+  <li><a href="#акселерометр" id="toc-акселерометр" class="nav-link" data-scroll-target="#акселерометр"><span class="header-section-number">2.2</span> Акселерометр</a></li>
+  </ul></li>
+  <li><a href="#нахил-з-акселерометра" id="toc-нахил-з-акселерометра" class="nav-link" data-scroll-target="#нахил-з-акселерометра"><span class="header-section-number">3</span> Нахил з акселерометра</a>
+  <ul class="collapse">
+  <li><a href="#апарат-у-спокої" id="toc-апарат-у-спокої" class="nav-link" data-scroll-target="#апарат-у-спокої"><span class="header-section-number">3.1</span> Апарат у спокої</a></li>
+  <li><a href="#квадрокоптер-у-польоті" id="toc-квадрокоптер-у-польоті" class="nav-link" data-scroll-target="#квадрокоптер-у-польоті"><span class="header-section-number">3.2</span> Квадрокоптер у польоті</a></li>
+  </ul></li>
+  <li><a href="#нахил-з-гіроскопа" id="toc-нахил-з-гіроскопа" class="nav-link" data-scroll-target="#нахил-з-гіроскопа"><span class="header-section-number">4</span> Нахил з гіроскопа</a></li>
+  <li><a href="#положення-з-imu-інерціальна-навігація" id="toc-положення-з-imu-інерціальна-навігація" class="nav-link" data-scroll-target="#положення-з-imu-інерціальна-навігація"><span class="header-section-number">5</span> Положення з IMU: інерціальна навігація</a>
+  <ul class="collapse">
+  <li><a href="#алгоритм" id="toc-алгоритм" class="nav-link" data-scroll-target="#алгоритм"><span class="header-section-number">5.1</span> Алгоритм</a></li>
+  <li><a href="#як-швидко-накопичується-похибка" id="toc-як-швидко-накопичується-похибка" class="nav-link" data-scroll-target="#як-швидко-накопичується-похибка"><span class="header-section-number">5.2</span> Як швидко накопичується похибка</a></li>
+  <li><a href="#висновок" id="toc-висновок" class="nav-link" data-scroll-target="#висновок"><span class="header-section-number">5.3</span> Висновок</a></li>
+  </ul></li>
+  <li><a href="#зовнішні-вимірювання" id="toc-зовнішні-вимірювання" class="nav-link" data-scroll-target="#зовнішні-вимірювання"><span class="header-section-number">6</span> Зовнішні вимірювання</a></li>
+  <li><a href="#що-далі" id="toc-що-далі" class="nav-link" data-scroll-target="#що-далі"><span class="header-section-number">7</span> Що далі</a></li>
+  <li><a href="#підсумок" id="toc-підсумок" class="nav-link" data-scroll-target="#підсумок"><span class="header-section-number">8</span> Підсумок</a></li>
+  <li><a href="#вправи" id="toc-вправи" class="nav-link" data-scroll-target="#вправи"><span class="header-section-number">9</span> Вправи</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Розділ 3 — Датчики: чому IMU замало</h1>
+<p class="subtitle lead">Гіроскоп, акселерометр та інерціальна навігація плоского квадрокоптера</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="мета" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Мета</h1>
+<p>У <a href="02_planar_quad_control.html">розділі 2</a> кожен регулятор каскаду використовував стан апарата: <span class="math inline">\(\dot\theta\)</span>, <span class="math inline">\(\theta\)</span>, <span class="math inline">\(\dot{x}\)</span>, <span class="math inline">\(x\)</span> тощо. У симуляторі ми брали справжні значення. На реальному апараті їх треба <strong>оцінити</strong> з показів датчиків.</p>
+<p>У цьому розділі ми:</p>
+<ol type="1">
+<li>запишемо моделі гіроскопа та акселерометра в наших координатах;</li>
+<li>побачимо, що <strong>акселерометр квадрокоптера в польоті не бачить нахилу</strong>;</li>
+<li>оцінимо, як швидко «пливуть» кут з гіроскопа та положення, проінтегроване з IMU;</li>
+<li>з’ясуємо, які зовнішні вимірювання можуть це виправити.</li>
+</ol>
+<p>Відповідний код — у <a href="../1.dynamics.py"><code>1.dynamics.py</code></a> та класі <code>Estimator</code> у <a href="../simulator.py"><code>simulator.py</code></a>. Позначення ті самі, що й у <a href="01_planar_quad_dynamics.html">розділі 1</a>: <span class="math inline">\(x\)</span> праворуч, <span class="math inline">\(z\)</span> вниз, <span class="math inline">\(y\)</span> до спостерігача, <span class="math inline">\(\theta &gt; 0\)</span> — ніс угору,</p>
+<p><span class="math display">\[
+R(\theta) =
+\begin{bmatrix}
+\cos\theta &amp; \sin\theta \\
+-\sin\theta &amp; \cos\theta
+\end{bmatrix}
+\quad \text{(зі зв'язаної системи у світову)}.
+\]</span></p>
+</section>
+<section id="датчики-що-вони-насправді-вимірюють" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Датчики: що вони насправді вимірюють</h1>
+<section id="гіроскоп" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="гіроскоп"><span class="header-section-number">2.1</span> Гіроскоп</h2>
+<p>Гіроскоп вимірює кутову швидкість у зв’язаній системі. У площині вона збігається з <span class="math inline">\(\dot\theta\)</span>:</p>
+<p><span class="math display">\[
+\dot\theta_m = \dot\theta + b_g + n_g ,
+\]</span></p>
+<p>де <span class="math inline">\(b_g\)</span> — зміщення нуля (bias), яке повільно змінюється, а <span class="math inline">\(n_g\)</span> — білий шум. У симуляторі <span class="math inline">\(b_g = 0\)</span>, <span class="math inline">\(\sigma_g = 0.01\)</span> рад/с.</p>
+</section>
+<section id="акселерометр" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="акселерометр"><span class="header-section-number">2.2</span> Акселерометр</h2>
+<p>Акселерометр <strong>не</strong> вимірює прискорення <span class="math inline">\(\ddot{\mathbf{p}}\)</span>. Він вимірює <strong>питому силу</strong> (specific force) — прискорення мінус гравітацію, у зв’язаній системі:</p>
+<p><span class="math display">\[
+\mathbf{f}_B = R(\theta)^\top \left( \ddot{\mathbf{p}} - \mathbf{g} \right) + \mathbf{b}_a + \mathbf{n}_a ,
+\qquad
+\mathbf{g} = \begin{bmatrix} 0 \\ g \end{bmatrix} .
+\]</span></p>
+<p>Інтуїція: акселерометр — це грузик на пружинці. У вільному падінні (<span class="math inline">\(\ddot{\mathbf{p}} = \mathbf{g}\)</span>) він показує нуль. Коли апарат стоїть на столі (<span class="math inline">\(\ddot{\mathbf{p}} = 0\)</span>), стіл штовхає його вгору, і акселерометр показує <span class="math inline">\(-\mathbf{g}\)</span>, тобто <span class="math inline">\(g\)</span> «угору» (у NED — від’ємне <span class="math inline">\(z\)</span>).</p>
+<p>У симуляторі <span class="math inline">\(\mathbf{b}_a = 0\)</span>, <span class="math inline">\(\sigma_a = 0.1\)</span> м/с².</p>
+</section>
+</section>
+<section id="нахил-з-акселерометра" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Нахил з акселерометра</h1>
+<section id="апарат-у-спокої" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="апарат-у-спокої"><span class="header-section-number">3.1</span> Апарат у спокої</h2>
+<p>Нехай апарат нерухомий (<span class="math inline">\(\ddot{\mathbf{p}} = 0\)</span>) і нахилений на кут <span class="math inline">\(\theta\)</span>. Тоді</p>
+<p><span class="math display">\[
+\mathbf{f}_B = R(\theta)^\top \begin{bmatrix} 0 \\ -g \end{bmatrix}
+= \begin{bmatrix} g\sin\theta \\ -g\cos\theta \end{bmatrix}
+\quad\Longrightarrow\quad
+\boxed{\theta = \operatorname{atan2}\!\left(f_x,\; -f_z\right)} .
+\]</span></p>
+<p>Акселерометр працює як рівень (ватерпас): він бачить, куди напрямлена гравітація, і з цього визначає нахил. Саме так оцінюють кут телефони, гімбали та стоячі роботи.</p>
+</section>
+<section id="квадрокоптер-у-польоті" class="level2" data-number="3.2">
+<h2 data-number="3.2" class="anchored" data-anchor-id="квадрокоптер-у-польоті"><span class="header-section-number">3.2</span> Квадрокоптер у польоті</h2>
+<p>Тепер підставимо рівняння руху квадрокоптера з розділу 1:</p>
+<p><span class="math display">\[
+\ddot{\mathbf{p}} - \mathbf{g} =
+\begin{bmatrix} -\tfrac{T}{m}\sin\theta \\[2pt] -\tfrac{T}{m}\cos\theta \end{bmatrix}
+= R(\theta) \begin{bmatrix} 0 \\ -\tfrac{T}{m} \end{bmatrix}
+\quad\Longrightarrow\quad
+\boxed{\mathbf{f}_B = \begin{bmatrix} 0 \\ -T/m \end{bmatrix}} .
+\]</span></p>
+<p><strong>За будь-якого кута <span class="math inline">\(\theta\)</span></strong> акселерометр показує одне й те саме: нуль уздовж <span class="math inline">\(x_B\)</span> і тягу, поділену на масу, уздовж <span class="math inline">\(-z_B\)</span>. Формула «ватерпаса» завжди дає <span class="math inline">\(\theta = 0\)</span>.</p>
+<p>Причина: єдина сила, крім гравітації, яка діє на апарат, — тяга, а вона завжди напрямлена вздовж <span class="math inline">\(-z_B\)</span>. Акселерометр відчуває всі сили, <strong>крім</strong> гравітації, тому він бачить лише тягу. Нахил для нього невидимий.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Important</span>Головний висновок
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Для квадрокоптера в моделі без опору повітря <strong>акселерометр не вимірює нахил</strong>. Класичний трюк «кут з акселерометра» працює лише тоді, коли апарат не прискорюється, а квадрокоптер, нахилившись, завжди прискорюється.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Як щодо реальних апаратів?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Реальні ротори мають опір: при русі вбік з’являється сила вздовж <span class="math inline">\(x_B\)</span>, пропорційна швидкості. Тому на справжньому апараті акселерометр несе трохи інформації про нахил, але лише разом з моделлю опору чи зовнішньою оцінкою швидкості. Саме тому автопілоти (PX4, ArduPilot) оцінюють нахил у великому фільтрі разом зі швидкістю від GPS чи камери.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="нахил-з-гіроскопа" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Нахил з гіроскопа</h1>
+<p>Можна просто проінтегрувати гіроскоп:</p>
+<p><span class="math display">\[
+\hat\theta_{k+1} = \hat\theta_k + \dot\theta_{m,k}\,\Delta t .
+\]</span></p>
+<p>Короткочасно це дуже точно, але помилки накопичуються:</p>
+<ul>
+<li>зміщення <span class="math inline">\(b_g\)</span> дає похибку, що росте лінійно: <span class="math inline">\(\delta\theta = b_g\,t\)</span>. Для <span class="math inline">\(b_g = 0.01\)</span> рад/с за 10 с похибка вже <span class="math inline">\(0.1\)</span> рад (<span class="math inline">\(\approx 5.7^\circ\)</span>);</li>
+<li>шум дає випадкове блукання: <span class="math inline">\(\sigma_\theta = \sigma_g\sqrt{t\,\Delta t}\)</span>.</li>
+</ul>
+<p>Гіроскоп — добрий на короткому інтервалі, акселерометр (там, де він працює) — на довгому. Поєднати їх — завдання фільтра Калмана (<a href="05_kalman_ekf.html">розділ 5</a>). Але для квадрокоптера в польоті акселерометр, як ми щойно бачили, про кут нічого не скаже, тож і фільтр з ним кута не врятує.</p>
+</section>
+<section id="положення-з-imu-інерціальна-навігація" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Положення з IMU: інерціальна навігація</h1>
+<section id="алгоритм" class="level2" data-number="5.1">
+<h2 data-number="5.1" class="anchored" data-anchor-id="алгоритм"><span class="header-section-number">5.1</span> Алгоритм</h2>
+<p>Якщо знаємо <span class="math inline">\(\hat\theta\)</span>, можна повернути питому силу у світову систему, повернути гравітацію і двічі проінтегрувати:</p>
+<p><span class="math display">\[
+\hat{\ddot{\mathbf{p}}} = R(\hat\theta)\,\mathbf{f}_B + \mathbf{g},
+\qquad
+\hat{\dot{\mathbf{p}}} \mathrel{+}= \hat{\ddot{\mathbf{p}}}\,\Delta t,
+\qquad
+\hat{\mathbf{p}} \mathrel{+}= \hat{\dot{\mathbf{p}}}\,\Delta t .
+\]</span></p>
+<p>Це функція <code>estimate_pos</code> у коді.</p>
+</section>
+<section id="як-швидко-накопичується-похибка" class="level2" data-number="5.2">
+<h2 data-number="5.2" class="anchored" data-anchor-id="як-швидко-накопичується-похибка"><span class="header-section-number">5.2</span> Як швидко накопичується похибка</h2>
+<p>Подвійне інтегрування — безжальне. Основні джерела:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 13%">
+<col style="width: 30%">
+<col style="width: 27%">
+<col style="width: 28%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Джерело</th>
+<th>Похибка прискорення</th>
+<th>Похибка положення</th>
+<th>Приклад через 10 с</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Похибка кута <span class="math inline">\(\delta\theta\)</span></td>
+<td><span class="math inline">\(g\,\delta\theta\)</span></td>
+<td><span class="math inline">\(\tfrac{1}{2} g\,\delta\theta\, t^2\)</span></td>
+<td><span class="math inline">\(\delta\theta = 0.01\)</span> рад <span class="math inline">\(\to\)</span> 4.9 м</td>
+</tr>
+<tr class="even">
+<td>Зміщення акселерометра <span class="math inline">\(b_a\)</span></td>
+<td><span class="math inline">\(b_a\)</span></td>
+<td><span class="math inline">\(\tfrac{1}{2} b_a t^2\)</span></td>
+<td><span class="math inline">\(b_a = 0.1\)</span> м/с² <span class="math inline">\(\to\)</span> 5 м</td>
+</tr>
+<tr class="odd">
+<td>Шум <span class="math inline">\(\sigma_a\)</span></td>
+<td>—</td>
+<td><span class="math inline">\(\approx \sigma_a \sqrt{\Delta t}\; t^{3/2} / \sqrt{3}\)</span></td>
+<td><span class="math inline">\(\sigma_a = 0.1\)</span> м/с² <span class="math inline">\(\to\)</span> 0.18 м</td>
+</tr>
+</tbody>
+</table>
+<p>Найнебезпечніша — похибка кута: похибка в <span class="math inline">\(0.57^\circ\)</span> дає майже 5 м за 10 секунд. А вище ми бачили, що для квадрокоптера похибка кута неминуча.</p>
+<p>У <a href="../1.dynamics.py"><code>1.dynamics.py</code></a> (режим <code>stab</code>, оцінка з IMU) через 10 с оцінка <span class="math inline">\(\hat{x}\)</span> відрізняється від справжнього <span class="math inline">\(x\)</span> приблизно вдвічі (близько 1–2 м).</p>
+</section>
+<section id="висновок" class="level2" data-number="5.3">
+<h2 data-number="5.3" class="anchored" data-anchor-id="висновок"><span class="header-section-number">5.3</span> Висновок</h2>
+<p>IMU сама по собі дає:</p>
+<ul>
+<li><strong>кутову швидкість</strong> — добре;</li>
+<li><strong>кут</strong> — лише на коротких інтервалах (секунди);</li>
+<li><strong>швидкість і положення</strong> — погано, похибка росте як <span class="math inline">\(t^2\)</span> і швидше.</li>
+</ul>
+<p>Щоб замкнути контури швидкості й положення з розділу 2, потрібне <strong>зовнішнє вимірювання</strong> швидкості чи положення.</p>
+</section>
+</section>
+<section id="зовнішні-вимірювання" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> Зовнішні вимірювання</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 28%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Датчик</th>
+<th>Що вимірює</th>
+<th>Переваги</th>
+<th>Недоліки</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>GPS</td>
+<td>положення, швидкість</td>
+<td>глобальний, без дрейфу</td>
+<td>лише надворі, ~1–3 м, 5–10 Гц</td>
+</tr>
+<tr class="even">
+<td>Барометр</td>
+<td>висоту <span class="math inline">\(-z\)</span></td>
+<td>дешевий</td>
+<td>дрейф з погодою, шум</td>
+</tr>
+<tr class="odd">
+<td>Оптичний потік</td>
+<td>швидкість відносно землі</td>
+<td>працює в приміщенні</td>
+<td>потрібна висота, текстура</td>
+</tr>
+<tr class="even">
+<td>Камера (VIO)</td>
+<td>положення й кут відносно сцени</td>
+<td>точний, в приміщенні</td>
+<td>обчислювально дорогий</td>
+</tr>
+</tbody>
+</table>
+<p>Ключова ідея: коли ми <strong>знаємо</strong> справжнє прискорення <span class="math inline">\(\ddot{x}\)</span> із зовнішнього джерела, рівняння <span class="math inline">\(\ddot{x} = -\tfrac{T}{m}\sin\theta\)</span> робить нахил <strong>спостережуваним</strong>. Тому оцінка швидкості з камери чи GPS виправляє не лише положення, а й кут.</p>
+</section>
+<section id="що-далі" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> Що далі</h1>
+<p>Наступні розділи будують відповідь крок за кроком. У <a href="04_camera_pose.html">розділі 4</a> камера дає положення й кут без дрейфу, але рідко і з власними слабкостями. У <a href="05_kalman_ekf.html">розділі 5</a> фільтр Калмана поєднує IMU із зовнішніми вимірюваннями, а поєднання IMU з камерою — це <strong>візуально-інерціальна одометрія (VIO)</strong>.</p>
+</section>
+<section id="підсумок" class="level1" data-number="8">
+<h1 data-number="8"><span class="header-section-number">8</span> Підсумок</h1>
+<ul>
+<li>Гіроскоп вимірює <span class="math inline">\(\dot\theta\)</span>; акселерометр вимірює <strong>питому силу</strong> <span class="math inline">\(\mathbf{f}_B = R^\top(\ddot{\mathbf{p}} - \mathbf{g})\)</span>, а не прискорення.</li>
+<li>Для квадрокоптера <span class="math inline">\(\mathbf{f}_B = [0,\, -T/m]^\top\)</span> за будь-якого нахилу: <strong>акселерометр не бачить кута</strong>.</li>
+<li>Гіроскоп дає кут лише на коротких інтервалах: зміщення накопичується лінійно.</li>
+<li>Подвійне інтегрування IMU накопичує похибку як <span class="math inline">\(t^2\)</span>; похибка кута <span class="math inline">\(0.01\)</span> рад дає ~5 м за 10 с.</li>
+<li>Потрібне зовнішнє вимірювання (GPS, оптичний потік, камера). Поєднання IMU з камерою — це <strong>VIO</strong>, тема наступних розділів.</li>
+</ul>
+</section>
+<section id="вправи" class="level1" data-number="9">
+<h1 data-number="9"><span class="header-section-number">9</span> Вправи</h1>
+<ol type="1">
+<li>Виведіть <span class="math inline">\(\mathbf{f}_B = [0,\, -T/m]^\top\)</span> самостійно з рівнянь розділу 1.</li>
+<li>Покажіть, що для апарата в спокої формула <span class="math inline">\(\theta = \operatorname{atan2}(f_x, -f_z)\)</span> дає справжній кут.</li>
+<li>У <code>1.dynamics.py</code> переключіть <code>use_estimated_position</code> між <code>True</code> і <code>False</code> у режимі <code>position</code>. Поясніть різницю.</li>
+<li>Скільки часу можна інтегрувати гіроскоп зі зміщенням <span class="math inline">\(0.005\)</span> рад/с, поки похибка положення від похибки кута не перевищить 1 м?</li>
+</ol>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
